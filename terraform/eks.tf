@@ -1,91 +1,78 @@
+# Configure AWS Provider
 provider "aws" {
-  region = local.region
+  region = "us-east-2"
 }
 
-locals {
-  name   = "ascode-cluster"
-  region = "us-east-1"
-
-  vpc_cidr = "10.123.0.0/16"
-  azs      = ["us-east-1a", "us-east-1b"]
-
-  public_subnets  = ["10.123.1.0/24", "10.123.2.0/24"]
-  private_subnets = ["10.123.3.0/24", "10.123.4.0/24"]
-  intra_subnets   = ["10.123.5.0/24", "10.123.6.0/24"]
-
-  tags = {
-    Example = local.name
-  }
+# VPC Configuration 
+resource "aws_vpc" "eks_vpc" {
+  cidr_block = "10.0.0.0/16"
 }
 
-module "vpc" {
-  source  = "terraform-aws-modules/vpc/aws"
-  version = "~> 4.0"
+# Internet Gateway Configuration 
+resource "aws_internet_gateway" "eks_gateway" {
+  vpc_id = aws_vpc.eks_vpc.id
+}
 
-  name = local.name
-  cidr = local.vpc_cidr
+# Subnet Configuration 
+resource "aws_subnet" "public_subnet" {
+  vpc_id            = aws_vpc.eks_vpc.id
+  cidr_block         = "10.0.1.0/24"
+  availability_zone = "us-east-2a"
 
-  azs             = local.azs
-  private_subnets = local.private_subnets
-  public_subnets  = local.public_subnets
-  intra_subnets   = local.intra_subnets
+  map_public_ip_on_launch = true
+}
 
-  enable_nat_gateway = true
+# Route Table Configuration 
+resource "aws_route_table" "eks_route_table" {
+  vpc_id = aws_vpc.eks_vpc.id
 
-  public_subnet_tags = {
-    "kubernetes.io/role/elb" = 1
-  }
-
-  private_subnet_tags = {
-    "kubernetes.io/role/internal-elb" = 1
+  route {
+    cidr_block = "0.0.0.0/0"
+    gateway_id = aws_internet_gateway.eks_gateway.id
   }
 }
 
-module "eks" {
-  source  = "terraform-aws-modules/eks/aws"
-  version = "19.15.1"
-
-  cluster_name                   = local.name
-  cluster_endpoint_public_access = true
-
-  cluster_addons = {
-    coredns = {
-      most_recent = true
-    }
-    kube-proxy = {
-      most_recent = true
-    }
-    vpc-cni = {
-      most_recent = true
-    }
-  }
-
-  vpc_id                   = module.vpc.vpc_id
-  subnet_ids               = module.vpc.private_subnets
-  control_plane_subnet_ids = module.vpc.intra_subnets
-
-  # EKS Managed Node Group(s)
-  eks_managed_node_group_defaults = {
-    ami_type       = "AL2_x86_64"
-    instance_types = ["m5.large"]
-
-    attach_cluster_primary_security_group = true
-  }
-
-  eks_managed_node_groups = {
-    ascode-cluster-wg = {
-      min_size     = 1
-      max_size     = 2
-      desired_size = 1
-
-      instance_types = ["t3.large"]
-      capacity_type  = "SPOT"
-
-      tags = {
-        ExtraTag = "helloworld"
-      }
-    }
-  }
-
-  tags = local.tags
+# Route Table Association with Subnet
+resource "aws_route_table_association" "public_subnet_association" {
+  subnet_id = aws_subnet.public_subnet.id
+  route_table_id = aws_route_table.eks_route_table.id
 }
+
+# EKS Cluster with Public Access 
+resource "aws_eks_cluster" "eks_cluster" {
+  name          = "my-eks-cluster"
+  role_arn      = "arn:aws:iam::ACCOUNT_ID:role/eks-admin-role" 
+  vpc_config {
+    security_group_ids = ["${aws_security_group.eks_sg.id}"]
+    subnet_ids        = [aws_subnet.public_subnet.id]
+  }
+ 
+}
+
+# Security Group for Nodes 
+resource "aws_security_group" "eks_sg" {
+  name = "eks-cluster-sg"
+  vpc_id = aws_vpc.eks_vpc.id
+
+  ingress {
+    from_port = 0
+    to_port   = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  egress {
+    from_port = 0
+    to_port   = 0
+    protocol = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Outputs
+output "cluster_name" {
+  value = aws_eks_cluster.eks_cluster.name
+}
+
+output "kubeconfig" {
+  value = aws_eks_cluster.eks_cluster.kubeconfig
