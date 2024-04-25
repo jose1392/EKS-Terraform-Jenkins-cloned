@@ -73,7 +73,3 @@ resource "aws_security_group" "eks_sg" {
 output "cluster_name" {
   value = aws_eks_cluster.eks_cluster.name
 }
-
-output "kubeconfig" {
-  value = aws_eks_cluster.eks_cluster.kubeconfig
-}
