@@ -46,7 +46,7 @@ resource "aws_eks_cluster" "eks_cluster" {
     security_group_ids = ["${aws_security_group.eks_sg.id}"]
     subnet_ids        = [aws_subnet.public_subnet.id]
   }
-
+}
 # Security Group for Nodes 
 resource "aws_security_group" "eks_sg" {
   name = "eks-cluster-sg"
@@ -58,7 +58,7 @@ resource "aws_security_group" "eks_sg" {
     protocol = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
-
+}
   egress {
     from_port = 0
     to_port   = 0
