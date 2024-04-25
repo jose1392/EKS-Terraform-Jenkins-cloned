@@ -10,6 +10,7 @@ pipeline {
             steps{
                 script{
                     checkout scmGit(branches: [[name: '*/main']], extensions: [], userRemoteConfigs: [[url: 'https://github.com/jose1392/EKS-Terraform-Jenkins-cloned.git']])
+
                 }
             }
         }
@@ -31,7 +32,16 @@ pipeline {
                 }
             }
         }
-        
+        stage('Previewing the infrastructure'){
+            steps{
+                script{
+                    dir('terraform'){
+                         sh 'terraform plan'
+                    }
+                    input(message: "Approve?", ok: "proceed")
+                }
+            }
+        }
         stage('Create/Destroy an EKS cluster'){
             steps{
                 script{
