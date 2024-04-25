@@ -10,7 +10,3 @@ locals {
     Example = local.name
   }
 }
-
-provider "aws" {
-  region = "us-east-1"
-}
