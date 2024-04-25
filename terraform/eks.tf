@@ -41,7 +41,7 @@ resource "aws_route_table_association" "public_subnet_association" {
 # EKS Cluster with Public Access 
 resource "aws_eks_cluster" "eks_cluster" {
   name          = "my-eks-cluster"
-  role_arn      = "arn:aws:iam::637423303341:user/terraform" 
+  role_arn      = "arn:aws:iam::637423303341:user/eks_cluster" 
   vpc_config {
     security_group_ids = ["${aws_security_group.eks_sg.id}"]
     subnet_ids        = [aws_subnet.public_subnet.id]
