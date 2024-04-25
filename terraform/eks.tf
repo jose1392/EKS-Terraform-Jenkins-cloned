@@ -1,62 +1,48 @@
-# Configure AWS Provider
-provider "aws" {
-  region = "us-east-1" # Replace with your desired region
-}
+module "eks" {
+  source  = "terraform-aws-modules/eks/aws"
+  version = "19.15.1"
 
-# Create a VPC
-resource "aws_vpc" "my_vpc" {
-  cidr_block = "10.0.0.0/16"
-}
+  cluster_name                   = local.name
+  cluster_endpoint_public_access = true
 
-# Create a public subnet for worker nodes
-resource "aws_subnet" "public_subnet" {
-  vpc_id            = aws_vpc.my_vpc.id
-  cidr_block         = "10.0.1.0/24"
-  availability_zone = "us-east-1a"
-
-  tags = {
-    Name = "PublicSubnet"
-  }
-}
-
-# Create a security group for the worker nodes (allowing SSH and Kubernetes API access)
-resource "aws_security_group" "worker_group" {
-  name        = "worker-security-group"
-  vpc_id      = aws_vpc.my_vpc.id
-
-  ingress {
-    from_port         = 22
-    to_port           = 22
-    protocol          = "tcp"
-    cidr_blocks       = ["0.0.0.0/0"]  # Allow SSH from anywhere (adjust for security)
+  cluster_addons = {
+    coredns = {
+      most_recent = true
+    }
+    kube-proxy = {
+      most_recent = true
+    }
+    vpc-cni = {
+      most_recent = true
+    }
   }
 
-  ingress {
-    from_port         = 6443
-    to_port           = 6443
-    protocol          = "tcp"
-    cidr_blocks       = [aws_subnet.public_subnet.cidr_block]  # Allow API access from the public subnet
+  vpc_id                   = module.vpc.vpc_id
+  subnet_ids               = module.vpc.private_subnets
+  control_plane_subnet_ids = module.vpc.intra_subnets
+
+  # EKS Managed Node Group(s)
+  eks_managed_node_group_defaults = {
+    ami_type       = "AL2_x86_64"
+    instance_types = ["m5.large"]
+
+    attach_cluster_primary_security_group = true
   }
 
-  egress {
-    from_port         = 0
-    to_port           = 0
-    protocol          = "-1"
-    cidr_blocks       = ["0.0.0.0/0"]  # Allow all outbound traffic (adjust for security)
-  }
-}
+  eks_managed_node_groups = {
+    amc-cluster-wg = {
+      min_size     = 1
+      max_size     = 2
+      desired_size = 1
 
-# Create an EKS cluster with worker nodes in the public subnet
-resource "aws_eks_cluster" "my_eks_cluster" {
-  name          = "my-eks-cluster"
-  role_arn       = aws_iam_role.eks_cluster_role.arn
-  vpc_config {
-    security_group_ids = [aws_security_group.worker_group.id]
-    subnet_ids        = [aws_subnet.public_subnet.id]
-  }
-}
+      instance_types = ["t3.large"]
+      capacity_type  = "SPOT"
 
-# IAM Role for EKS Cluster (replace with your IAM role creation)
-resource "aws_iam_role" "eks_cluster_role" {
-  arn:aws:iam::637423303341:user/eks_cluster
+      tags = {
+        ExtraTag = "helloworld"
+      }
+    }
+  }
+
+  tags = local.tags
 }
