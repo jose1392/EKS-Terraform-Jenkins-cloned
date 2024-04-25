@@ -1,70 +1,62 @@
 # Configure AWS Provider
 provider "aws" {
-  region = "us-east-2"
+  region = "us-east-1" # Replace with your desired region
 }
 
-# VPC Configuration 
-resource "aws_vpc" "eks_vpc" {
+# Create a VPC
+resource "aws_vpc" "my_vpc" {
   cidr_block = "10.0.0.0/16"
 }
 
-# Internet Gateway Configuration 
-resource "aws_internet_gateway" "eks_gateway" {
-  vpc_id = aws_vpc.eks_vpc.id
-}
-
-# Subnet Configuration 
+# Create a public subnet for worker nodes
 resource "aws_subnet" "public_subnet" {
-  vpc_id            = aws_vpc.eks_vpc.id
+  vpc_id            = aws_vpc.my_vpc.id
   cidr_block         = "10.0.1.0/24"
-  availability_zone = "us-east-2a"
+  availability_zone = "us-east-1a"
 
-  map_public_ip_on_launch = true
+  tags = {
+    Name = "PublicSubnet"
+  }
 }
 
-# Route Table Configuration 
-resource "aws_route_table" "eks_route_table" {
-  vpc_id = aws_vpc.eks_vpc.id
-  }
-  route {
-    cidr_block = "0.0.0.0/0"
-    gateway_id = aws_internet_gateway.eks_gateway.id
+# Create a security group for the worker nodes (allowing SSH and Kubernetes API access)
+resource "aws_security_group" "worker_group" {
+  name        = "worker-security-group"
+  vpc_id      = aws_vpc.my_vpc.id
+
+  ingress {
+    from_port         = 22
+    to_port           = 22
+    protocol          = "tcp"
+    cidr_blocks       = ["0.0.0.0/0"]  # Allow SSH from anywhere (adjust for security)
   }
 
-# Route Table Association with Subnet
-resource "aws_route_table_association" "public_subnet_association" {
-  subnet_id = aws_subnet.public_subnet.id
-  route_table_id = aws_route_table.eks_route_table.id
+  ingress {
+    from_port         = 6443
+    to_port           = 6443
+    protocol          = "tcp"
+    cidr_blocks       = [aws_subnet.public_subnet.cidr_block]  # Allow API access from the public subnet
+  }
+
+  egress {
+    from_port         = 0
+    to_port           = 0
+    protocol          = "-1"
+    cidr_blocks       = ["0.0.0.0/0"]  # Allow all outbound traffic (adjust for security)
+  }
 }
 
-# EKS Cluster with Public Access 
-resource "aws_eks_cluster" "eks_cluster" {
+# Create an EKS cluster with worker nodes in the public subnet
+resource "aws_eks_cluster" "my_eks_cluster" {
   name          = "my-eks-cluster"
-  role_arn      = "arn:aws:iam::637423303341:user/eks_cluster" 
+  role_arn       = aws_iam_role.eks_cluster_role.arn
   vpc_config {
-    security_group_ids = ["${aws_security_group.eks_sg.id}"]
+    security_group_ids = [aws_security_group.worker_group.id]
     subnet_ids        = [aws_subnet.public_subnet.id]
   }
 }
-# Security Group for Nodes 
-resource "aws_security_group" "eks_sg" {
-  name = "eks-cluster-sg"
-  vpc_id = aws_vpc.eks_vpc.id
-  }
-  ingress {
-    from_port = 0
-    to_port   = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-  egress {
-    from_port = 0
-    to_port   = 0
-    protocol = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
 
-# Outputs
-output "cluster_name" {
-  value = aws_eks_cluster.eks_cluster.name
+# IAM Role for EKS Cluster (replace with your IAM role creation)
+resource "aws_iam_role" "eks_cluster_role" {
+  arn:aws:iam::637423303341:user/eks_cluster
 }
