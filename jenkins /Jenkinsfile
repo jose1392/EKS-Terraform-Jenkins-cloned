@@ -31,16 +31,7 @@ pipeline {
                 }
             }
         }
-        stage('Previewing the infrastructure'){
-            steps{
-                script{
-                    dir('terraform'){
-                         sh 'terraform plan'
-                    }
-                    input(message: "Approve?", ok: "proceed")
-                }
-            }
-        }
+        
         stage('Create/Destroy an EKS cluster'){
             steps{
                 script{
