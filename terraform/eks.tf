@@ -30,7 +30,6 @@ resource "aws_route_table" "eks_route_table" {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.eks_gateway.id
   }
-}
 
 # Route Table Association with Subnet
 resource "aws_route_table_association" "public_subnet_association" {
@@ -51,7 +50,7 @@ resource "aws_eks_cluster" "eks_cluster" {
 resource "aws_security_group" "eks_sg" {
   name = "eks-cluster-sg"
   vpc_id = aws_vpc.eks_vpc.id
-
+  }
   ingress {
     from_port = 0
     to_port   = 0
